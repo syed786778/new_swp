@@ -2,204 +2,229 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SWP Calculator</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>Systematic Withdrawal Plan Report</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 40px;
       background-color: #f9f9f9;
     }
-    h2 {
-      text-align: center;
+    h1 {
       color: #333;
-    }
-    .container {
-      max-width: 800px;
-      margin: auto;
-      background: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
     }
     label {
-      display: block;
-      margin: 10px 0 5px;
-      font-weight: bold;
+      display: inline-block;
+      width: 150px;
+      margin-bottom: 10px;
     }
     input {
-      width: 100%;
-      padding: 8px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
+      padding: 5px;
+      margin-bottom: 10px;
     }
     button {
-      margin-top: 20px;
       padding: 10px 20px;
-      background-color: #28a745;
+      margin-top: 10px;
+      cursor: pointer;
+      background-color: #007BFF;
       color: white;
       border: none;
       border-radius: 5px;
-      cursor: pointer;
     }
     button:hover {
-      background-color: #218838;
+      background-color: #0056b3;
     }
-    #report {
-      margin-top: 40px;
+    .report {
+      margin-top: 30px;
+      background: #ffffff;
       padding: 20px;
-      background: #fff;
-      border-radius: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+    canvas {
+      margin-top: 20px;
     }
     table {
       width: 100%;
-      border-collapse: collapse;
       margin-top: 20px;
+      border-collapse: collapse;
     }
     th, td {
       padding: 10px;
+      border-bottom: 1px solid #ccc;
       text-align: left;
-      border-bottom: 1px solid #ddd;
     }
     th {
-      background-color: #00bfa5;
+      background-color: #17a2b8;
       color: white;
-    }
-    #chartContainer {
-      margin-top: 30px;
     }
   </style>
 </head>
 <body>
-<div class="container">
-  <h2>Systematic Withdrawal Plan (SWP) Calculator</h2>
+
+  <h1>Systematic Withdrawal Plan</h1>
+
   <label for="name">Customer Name:</label>
-  <input type="text" id="name">
+  <input type="text" id="name" value="Syed Rashad"><br>
 
   <label for="corpus">Initial Corpus (₹):</label>
-  <input type="number" id="corpus">
+  <input type="number" id="corpus" value="100000000"><br>
 
-  <label for="return">Expected Annual Return (%):</label>
-  <input type="number" id="return">
+  <label for="return">Annual Return (%):</label>
+  <input type="number" id="return" value="12"><br>
 
   <label for="withdrawal">Monthly Withdrawal (₹):</label>
-  <input type="number" id="withdrawal">
+  <input type="number" id="withdrawal" value="175000"><br>
 
-  <label for="inflation">Expected Inflation Rate (%):</label>
-  <input type="number" id="inflation">
+  <label for="inflation">Inflation Rate (%):</label>
+  <input type="number" id="inflation" value="5"><br>
 
   <label for="years">Duration (Years):</label>
-  <input type="number" id="years">
+  <input type="number" id="years" value="25"><br>
 
-  <button onclick="calculateSWP()">Calculate</button>
-  <button onclick="downloadPDF()">Download PDF Report</button>
+  <button onclick="generateReport()">Generate Report</button>
+  <button onclick="downloadPDF()">Download PDF</button>
 
-  <div id="report"></div>
-  <div id="chartContainer">
-    <canvas id="corpusChart"></canvas>
+  <div class="report" id="reportSection" style="display:none;">
+    <div id="report"></div>
+    <canvas id="corpusChart" width="600" height="300"></canvas>
   </div>
-</div>
 
-<script>
-  let chart;
+  <script>
+    function generateReport() {
+      const name = document.getElementById('name').value;
+      const corpus = parseFloat(document.getElementById('corpus').value);
+      const annualReturn = parseFloat(document.getElementById('return').value) / 100;
+      const withdrawal = parseFloat(document.getElementById('withdrawal').value);
+      const inflation = parseFloat(document.getElementById('inflation').value) / 100;
+      const years = parseInt(document.getElementById('years').value);
 
-  function calculateSWP() {
-    const name = document.getElementById('name').value;
-    const corpus = parseFloat(document.getElementById('corpus').value);
-    const annualReturn = parseFloat(document.getElementById('return').value) / 100;
-    const monthlyReturn = Math.pow(1 + annualReturn, 1/12) - 1;
-    const withdrawal = parseFloat(document.getElementById('withdrawal').value);
-    const inflationRate = parseFloat(document.getElementById('inflation').value) / 100;
-    const durationYears = parseInt(document.getElementById('years').value);
-    const totalMonths = durationYears * 12;
+      const monthlyReturn = Math.pow(1 + annualReturn, 1/12) - 1;
+      const monthlyInflation = Math.pow(1 + inflation, 1/12) - 1;
 
-    let balance = corpus;
-    let months = 0;
-    let exhaustedIn = null;
-    const data = [];
+      let balance = corpus;
+      let data = [];
+      let months = 0;
+      let adjustedWithdrawal = withdrawal;
 
-    for (let i = 0; i < totalMonths; i++) {
-      const inflationAdjustedWithdrawal = withdrawal * Math.pow(1 + inflationRate, i / 12);
-      balance = balance * (1 + monthlyReturn) - inflationAdjustedWithdrawal;
-      if (balance <= 0 && !exhaustedIn) {
-        exhaustedIn = i;
-        balance = 0;
+      while (balance > 0 && months < years * 12) {
+        balance *= 1 + monthlyReturn;
+        balance -= adjustedWithdrawal;
+        data.push(balance > 0 ? balance : 0);
+        adjustedWithdrawal *= 1 + monthlyInflation;
+        months++;
       }
-      data.push({ month: i, balance });
-    }
 
-    const yearsExhausted = exhaustedIn ? (exhaustedIn / 12).toFixed(1) + ' years' : 'Not exhausted';
+      const exhaustedYears = (months / 12).toFixed(1);
 
-    document.getElementById('report').innerHTML = `
-      <h3>Systematic Withdrawal Plan Report</h3>
-      <p><strong>Customer Name:</strong> ${name}</p>
-      <table>
-        <tr><th>Field</th><th>Value</th></tr>
-        <tr><td>Initial Corpus</td><td>₹ ${corpus.toLocaleString()}</td></tr>
-        <tr><td>Annual Return</td><td>${(annualReturn * 100).toFixed(2)}%</td></tr>
-        <tr><td>Monthly Withdrawal</td><td>₹ ${withdrawal.toLocaleString()}</td></tr>
-        <tr><td>Inflation Rate</td><td>${(inflationRate * 100).toFixed(2)}%</td></tr>
-        <tr><td>Duration</td><td>${durationYears} years</td></tr>
-      </table>
-      <p><strong>Corpus exhausted in:</strong> ${yearsExhausted}</p>
-    `;
+      const reportHTML = `
+        <h2>Systematic Withdrawal Plan Report</h2>
+        <p><strong>Customer Name:</strong> ${name}</p>
+        <p><strong>Initial Corpus:</strong> ₹${corpus.toLocaleString()}</p>
+        <p><strong>Annual Return:</strong> ${(annualReturn * 100).toFixed(2)}%</p>
+        <p><strong>Monthly Withdrawal:</strong> ₹${withdrawal.toLocaleString()}</p>
+        <p><strong>Inflation Rate:</strong> ${(inflation * 100).toFixed(2)}%</p>
+        <p><strong>Duration:</strong> ${years} years</p>
+        <p style="color: red;"><strong>Corpus exhausted in ${exhaustedYears} years.</strong></p>
 
-    const ctx = document.getElementById('corpusChart').getContext('2d');
-    if (chart) chart.destroy();
-    chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: data.map(d => (d.month / 12).toFixed(1)),
+        <table>
+          <tr><th>Field</th><th>Value</th></tr>
+          <tr><td>Initial Corpus</td><td>₹${corpus.toLocaleString()}</td></tr>
+          <tr><td>Annual Return</td><td>${(annualReturn * 100).toFixed(2)}%</td></tr>
+          <tr><td>Monthly Withdrawal</td><td>₹${withdrawal.toLocaleString()}</td></tr>
+          <tr><td>Inflation Rate</td><td>${(inflation * 100).toFixed(2)}%</td></tr>
+          <tr><td>Duration</td><td>${years} years</td></tr>
+        </table>
+      `;
+
+      document.getElementById('report').innerHTML = reportHTML;
+      document.getElementById('reportSection').style.display = 'block';
+
+      const labels = Array.from({length: months}, (_, i) => `Month ${i+1}`);
+      const chartData = {
+        labels: labels,
         datasets: [{
           label: 'Corpus Balance Over Time',
-          data: data.map(d => d.balance),
-          borderColor: '#007bff',
-          fill: false,
+          data: data,
+          borderColor: '#007BFF',
+          backgroundColor: 'rgba(0,123,255,0.1)',
+          fill: true,
+          tension: 0.1
         }]
-      },
-      options: {
-        responsive: true,
-        scales: {
-          x: { title: { display: true, text: 'Year' } },
-          y: { title: { display: true, text: 'Corpus (₹)' } }
+      };
+
+      const ctx = document.getElementById('corpusChart').getContext('2d');
+      if (window.corpusChartInstance) window.corpusChartInstance.destroy();
+      window.corpusChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: chartData,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return '₹' + value.toLocaleString();
+                }
+              }
+            }
+          }
         }
+      });
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      const name = document.getElementById('name').value;
+      const corpus = parseFloat(document.getElementById('corpus').value).toLocaleString();
+      const annualReturn = document.getElementById('return').value;
+      const withdrawal = parseFloat(document.getElementById('withdrawal').value).toLocaleString();
+      const inflation = document.getElementById('inflation').value;
+      const years = document.getElementById('years').value;
+
+      const canvas = document.getElementById('corpusChart');
+      const chartImg = canvas.toDataURL("image/png", 1.0);
+
+      let y = 20;
+
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text("Systematic Withdrawal Plan Report", 20, y);
+      y += 10;
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Customer Name: ${name}`, 20, y); y += 10;
+      doc.text(`Initial Corpus: ₹ ${corpus}`, 20, y); y += 10;
+      doc.text(`Annual Return: ${annualReturn}%`, 20, y); y += 10;
+      doc.text(`Monthly Withdrawal: ₹ ${withdrawal}`, 20, y); y += 10;
+      doc.text(`Inflation Rate: ${inflation}%`, 20, y); y += 10;
+      doc.text(`Duration: ${years} years`, 20, y); y += 10;
+
+      const reportText = document.getElementById('report').innerText;
+      const exhaustedLine = reportText.split('\n').find(line => line.includes('Corpus exhausted'));
+      if (exhaustedLine) {
+        doc.setFont('helvetica', 'bold');
+        doc.text(exhaustedLine, 20, y); y += 10;
       }
-    });
-  }
 
-  function downloadPDF() {
-    const {{ jsPDF }} = window.jspdf;
-    const doc = new jsPDF();
+      // Move image to new page if required
+      if (y > 100) {
+        doc.addPage();
+        y = 20;
+      }
 
-    const name = document.getElementById('name').value;
-    const corpus = document.getElementById('corpus').value;
-    const annualReturn = document.getElementById('return').value;
-    const withdrawal = document.getElementById('withdrawal').value;
-    const inflation = document.getElementById('inflation').value;
-    const years = document.getElementById('years').value;
-
-    const canvas = document.getElementById('corpusChart');
-    const chartImg = canvas.toDataURL("image/png", 1.0);
-
-    doc.setFontSize(14);
-    doc.text("Systematic Withdrawal Plan Report", 20, 20);
-    doc.setFontSize(12);
-    doc.text(`Customer Name: ${name}`, 20, 30);
-    doc.text(`Initial Corpus: ₹ ${corpus}`, 20, 40);
-    doc.text(`Annual Return: ${annualReturn}%`, 20, 50);
-    doc.text(`Monthly Withdrawal: ₹ ${withdrawal}`, 20, 60);
-    doc.text(`Inflation Rate: ${inflation}%`, 20, 70);
-    doc.text(`Duration: ${years} years`, 20, 80);
-
-    const reportText = document.getElementById('report').innerText;
-    const exhaustedLine = reportText.split('\n').find(line => line.includes('Corpus exhausted'));
-    doc.text(exhaustedLine, 20, 90);
-
-    doc.addImage(chartImg, 'PNG', 15, 100, 180, 80);
-    doc.save('SWP_Report.pdf');
-  }
-</script>
+      doc.addImage(chartImg, 'PNG', 15, y + 10, 180, 80);
+      doc.save('SWP_Report.pdf');
+    }
+  </script>
 </body>
 </html>
