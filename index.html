@@ -1,0 +1,227 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SWP Calculator</title>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f4f4f4;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #007bff;
+    }
+    .input-group {
+      background-color: #fff;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .input-group label {
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #007bff;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #28a745;
+      color: #fff;
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #f4f4f4;
+      color: #007bff;
+    }
+    .results {
+      margin-top: 20px;
+    }
+    #balanceChart {
+      margin-top: 20px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+  <h1>Systematic Withdrawal Plan (SWP) Calculator</h1>
+
+  <div class="input-group">
+    <label>Customer Name</label>
+    <input type="text" id="customerName" placeholder="Enter customer name">
+
+    <label>Initial Corpus (₹)</label>
+    <input type="number" id="initialCorpus" placeholder="e.g. 1000000">
+
+    <label>Expected Annual Return (%)</label>
+    <input type="number" id="annualReturn" placeholder="e.g. 8">
+
+    <label>Monthly Withdrawal Amount (₹)</label>
+    <input type="number" id="monthlyWithdrawal" placeholder="e.g. 10000">
+
+    <label>Annual Inflation Rate (%)</label>
+    <input type="number" id="inflationRate" placeholder="e.g. 6">
+
+    <label>Duration (years)</label>
+    <input type="number" id="duration" placeholder="e.g. 20">
+  </div>
+
+  <button onclick="calculateSWP()">Calculate</button>
+
+  <div class="results" id="results"></div>
+
+  <canvas id="balanceChart" width="400" height="200"></canvas>
+
+  <button onclick="generatePDF()">Download PDF Report</button>
+
+  <script>
+    let swpData = { corpusExhaustedMonth: null, inputs: {}, summary: "" };
+
+    function calculateSWP() {
+      const customerName = document.getElementById("customerName").value;
+      const initialCorpus = parseFloat(document.getElementById("initialCorpus").value);
+      const annualReturn = parseFloat(document.getElementById("annualReturn").value);
+      const monthlyWithdrawal = parseFloat(document.getElementById("monthlyWithdrawal").value);
+      const duration = parseInt(document.getElementById("duration").value) * 12;
+      const inflationRate = parseFloat(document.getElementById("inflationRate").value) || 0;
+
+      const monthlyRate = annualReturn / 12 / 100;
+      let balance = initialCorpus;
+      let totalWithdrawn = 0;
+      let breakdown = "";
+      const balanceData = [];
+      const labels = [];
+      let exhausted = false;
+      let exhaustedMonth = null;
+
+      for (let i = 1; i <= duration; i++) {
+        let interest = balance * monthlyRate;
+        let totalAvailable = balance + interest;
+        let inflationFactor = Math.pow(1 + inflationRate / 100, i / 12);
+        let adjustedWithdrawal = monthlyWithdrawal * inflationFactor;
+        let withdrawal = Math.min(adjustedWithdrawal, totalAvailable);
+        let closingBalance = totalAvailable - withdrawal;
+
+        breakdown += `<tr><td>${i}</td><td>₹${balance.toFixed(2)}</td><td>₹${interest.toFixed(2)}</td><td>₹${withdrawal.toFixed(2)}</td><td>₹${closingBalance.toFixed(2)}</td></tr>`;
+
+        labels.push("Month " + i);
+        balanceData.push(closingBalance);
+        totalWithdrawn += withdrawal;
+        balance = closingBalance;
+
+        if (balance <= 0 && !exhausted) {
+          exhausted = true;
+          exhaustedMonth = i;
+          break;
+        }
+      }
+
+      const yearsToExhaust = exhaustedMonth ? (exhaustedMonth / 12).toFixed(1) : "Not exhausted";
+
+      const resultDiv = document.getElementById("results");
+      let warning = exhausted ? `<p style="color:red;"><strong>Warning:</strong> The corpus was exhausted after ${yearsToExhaust} years.</p>` : "";
+      resultDiv.innerHTML = `
+        <h2>SWP Summary for ${customerName}</h2>
+        <p><strong>Total Withdrawn:</strong> ₹${totalWithdrawn.toFixed(2)}</p>
+        ${warning}
+        <table>
+          <tr><th>Month</th><th>Opening Balance</th><th>Interest Earned</th><th>Withdrawal</th><th>Closing Balance</th></tr>
+          ${breakdown}
+        </table>
+      `;
+
+      swpData = {
+        corpusExhaustedMonth: exhaustedMonth,
+        inputs: { customerName, initialCorpus, annualReturn, monthlyWithdrawal, inflationRate, duration },
+        summary: resultDiv.innerHTML
+      };
+
+      const ctx = document.getElementById('balanceChart').getContext('2d');
+      if (window.myChart) window.myChart.destroy();
+      window.myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Corpus Balance Over Time',
+            data: balanceData,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            fill: false
+          }]
+        }
+      });
+    }
+
+    function generatePDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const inputs = swpData.inputs;
+      doc.setFontSize(16);
+      doc.text("Systematic Withdrawal Plan Report", 20, 20);
+
+      doc.setFontSize(12);
+      doc.text(`Customer Name: ${inputs.customerName}`, 20, 30);
+      doc.text(`Initial Corpus: ₹${inputs.initialCorpus}`, 20, 40);
+      doc.text(`Annual Return: ${inputs.annualReturn}%`, 20, 50);
+      doc.text(`Monthly Withdrawal: ₹${inputs.monthlyWithdrawal}`, 20, 60);
+      doc.text(`Inflation Rate: ${inputs.inflationRate}%`, 20, 70);
+      doc.text(`Duration: ${inputs.duration / 12} years`, 20, 80);
+
+      const exhaustText = swpData.corpusExhaustedMonth
+        ? `Corpus exhausted in ${ (swpData.corpusExhaustedMonth / 12).toFixed(1) } years.`
+        : `Corpus is sustainable for the entire duration.`;
+
+      doc.text(exhaustText, 20, 90);
+
+      doc.autoTable({
+        head: [['Field', 'Value']],
+        body: [
+          ['Initial Corpus', `₹${inputs.initialCorpus}`],
+          ['Annual Return', `${inputs.annualReturn}%`],
+          ['Monthly Withdrawal', `₹${inputs.monthlyWithdrawal}`],
+          ['Inflation Rate', `${inputs.inflationRate}%`],
+          ['Duration', `${inputs.duration / 12} years`],
+        ],
+        startY: 100,
+        theme: 'grid'
+      });
+
+      const canvas = document.getElementById('balanceChart');
+      const chartImg = canvas.toDataURL("image/png", 1.0);
+      doc.addImage(chartImg, "PNG", 20, doc.lastAutoTable.finalY + 10, 170, 80);
+      doc.save("SWP_Report.pdf");
+    }
+  </script>
+
+</body>
+</html>
